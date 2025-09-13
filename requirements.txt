@@ -1,0 +1,13 @@
+# Core
+feedparser==6.0.11
+requests==2.32.3
+beautifulsoup4==4.12.3
+trafilatura==1.9.0
+PyYAML==6.0.2
+python-dateutil==2.9.0.post0
+rapidfuzz==3.9.6
+
+# Optional (only if you enable OpenAI summarization)
+openai>=1.40.0
+
+# Email

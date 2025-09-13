@@ -1,0 +1,79 @@
+# --- Edit this file to customize your agent ---
+timezone: "Asia/Kolkata"
+
+topics:
+topics:
+  - "IRDAI"
+  - "SEBI"
+  - "mutual fund distribution"
+  - "AMFI circular"
+  - "ARN renewal"
+  - "EUIN"
+  - "commission payout"
+  - "B-30 incentives"
+  - "mutual fund distributor commission"
+  - "trail commission"
+  - "advertising code"
+  - "advertisement guidelines"
+  - "mutual fund advertising compliance"
+  - "investment adviser vs MFD"
+  - "KYC / CKYC / FATCA"
+  - "SIP / STP / SWP"
+  - "IRDAI circulars"
+  - "SEBI regulations"
+  - "mutual fund distribution"
+  - "insurance intermediaries"
+  - "digital lending"
+
+sources:
+  # Prefer RSS first for reliability. Add/replace with your own feeds & sites.
+  - "https://news.google.com/rss/search?q=IRDAI+India"
+  - "https://news.google.com/rss/search?q=SEBI+regulations+India"
+  - "https://news.google.com/rss/search?q=mutual+fund+distribution+India"
+  - "https://news.google.com/rss/search?q=insurance+broking+India"
+  - "https://news.google.com/rss/search?q=digital+lending+India"
+  # IRDAI
+  - "https://news.google.com/rss/search?q=site:irdai.gov.in+IRDAI+circular"
+
+  # SEBI circulars & advertising code
+  - "https://news.google.com/rss/search?q=site:sebi.gov.in+mutual+fund+advertisement"
+  - "https://news.google.com/rss/search?q=site:sebi.gov.in+B-30+incentives"
+  - "https://news.google.com/rss/search?q=site:sebi.gov.in+mutual+fund+commission"
+
+  # AMFI distributor corner (commission/advisory guidelines)
+  - "https://news.google.com/rss/search?q=site:amfiindia.com+commission"
+  - "https://news.google.com/rss/search?q=site:amfiindia.com+advertisement+code"
+  - "https://news.google.com/rss/search?q=site:amfiindia.com+B-30"
+
+
+limits:
+  per_run_max_articles: 40
+  per_run_max_summary: 12
+
+delivery:
+  # Choose where to send the brief. Set enabled: true and configure credentials via env vars.
+  email:
+    enabled: false
+    to: "you@example.com"
+    subject_prefix: "[Daily Brief]"
+    # SMTP credentials are expected from environment variables:
+    # SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM
+  slack:
+    enabled: false
+    webhook_url_env: "SLACK_WEBHOOK_URL"
+
+summarization:
+  enabled: true
+  provider: "openai"       # "openai" or "builtin"
+  model: "gpt-4o-mini"     # used if provider == "openai"
+  language: "en"           # "en" or "hi" etc.
+  max_words: 140
+
+storage:
+  db_path: "state.sqlite3"
+  reports_dir: "reports"
+
+ranking:
+  # Simple keyword scoring. You can tune weights per topic if needed.
+  min_score: 1
+python agent.py
