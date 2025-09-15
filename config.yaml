@@ -1,7 +1,5 @@
-# --- Edit this file to customize your agent ---
 timezone: "Asia/Kolkata"
 
-topics:
 topics:
   - "IRDAI"
   - "SEBI"
@@ -45,7 +43,6 @@ sources:
   - "https://news.google.com/rss/search?q=site:amfiindia.com+advertisement+code"
   - "https://news.google.com/rss/search?q=site:amfiindia.com+B-30"
 
-
 limits:
   per_run_max_articles: 40
   per_run_max_summary: 12
@@ -64,9 +61,9 @@ delivery:
 
 summarization:
   enabled: true
-  provider: "openai"       # "openai" or "builtin"
-  model: "gpt-4o-mini"     # used if provider == "openai"
-  language: "en"           # "en" or "hi" etc.
+  provider: "openai" # "openai" or "builtin"
+  model: "gpt-4o-mini" # used if provider == "openai"
+  language: "en" # "en" or "hi" etc.
   max_words: 140
 
 storage:
@@ -76,4 +73,3 @@ storage:
 ranking:
   # Simple keyword scoring. You can tune weights per topic if needed.
   min_score: 1
-python agent.py
