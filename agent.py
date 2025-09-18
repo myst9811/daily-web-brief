@@ -11,6 +11,7 @@ import trafilatura
 from email.message import EmailMessage
 import smtplib
 import logging
+from urllib.parse import urlparse, parse_qs, unquote
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -56,6 +57,67 @@ HEADERS = {
 # Track seen articles to avoid duplicates
 seen_articles = set()
 
+def resolve_google_news_url(url, max_redirects=5):
+    """
+    Resolve Google News stub URLs to actual article URLs.
+    Handles both redirect following and URL parameter extraction.
+    """
+    if not url or "news.google.com" not in url:
+        return url
+        
+    logger.info(f"Resolving Google News URL: {url}")
+    
+    # Method 1: Try to extract URL from Google News parameters
+    try:
+        parsed = urlparse(url)
+        if "articles" in parsed.path:
+            # Some Google News URLs have the actual URL encoded in parameters
+            query_params = parse_qs(parsed.query)
+            if 'url' in query_params:
+                actual_url = unquote(query_params['url'][0])
+                logger.info(f"Extracted URL from parameters: {actual_url}")
+                return actual_url
+    except Exception as e:
+        logger.debug(f"Failed to extract URL from parameters: {e}")
+    
+    # Method 2: Follow redirects manually with session
+    try:
+        session = requests.Session()
+        session.headers.update(HEADERS)
+        
+        current_url = url
+        for redirect_count in range(max_redirects):
+            time.sleep(0.5)  # Be polite
+            
+            response = session.get(current_url, allow_redirects=False, timeout=10)
+            
+            # Check for redirect
+            if response.status_code in [301, 302, 303, 307, 308]:
+                next_url = response.headers.get('Location')
+                if next_url:
+                    logger.debug(f"Redirect {redirect_count + 1}: {current_url} -> {next_url}")
+                    current_url = next_url
+                    
+                    # If we've left Google News, we found the actual article
+                    if "news.google.com" not in next_url:
+                        logger.info(f"Resolved to actual article: {next_url}")
+                        return next_url
+                else:
+                    break
+            else:
+                # No more redirects
+                if "news.google.com" not in current_url:
+                    logger.info(f"Resolved to actual article: {current_url}")
+                    return current_url
+                break
+                
+    except Exception as e:
+        logger.warning(f"Failed to resolve Google News URL {url}: {e}")
+    
+    # If all else fails, return the original URL
+    logger.warning(f"Could not resolve Google News URL, returning original: {url}")
+    return url
+
 def safe_get(url, timeout=10):
     """Fetch a URL safely with error handling."""
     try:
@@ -70,65 +132,100 @@ def safe_get(url, timeout=10):
 
 def extract_main_text(url):
     """Extract main text content from article URL."""
+    # First, resolve any Google News URLs
+    resolved_url = resolve_google_news_url(url)
+    
+    # Skip if still on Google News after resolution attempts
+    if "news.google.com" in resolved_url:
+        logger.warning(f"Still on Google News after resolution, skipping: {resolved_url}")
+        return None
+    
     try:
         # Try trafilatura first (best for article extraction)
-        downloaded = trafilatura.fetch_url(url)
+        logger.info(f"Attempting trafilatura extraction from: {resolved_url}")
+        downloaded = trafilatura.fetch_url(resolved_url)
         if downloaded:
-            text = trafilatura.extract(downloaded, favor_precision=True)
+            text = trafilatura.extract(
+                downloaded, 
+                favor_precision=True,
+                include_comments=False,
+                include_tables=False
+            )
             if text and len(text.split()) > 40:
-                logger.info(f"Extracted {len(text.split())} words from {url}")
+                logger.info(f"✅ Trafilatura extracted {len(text.split())} words from {resolved_url}")
                 return text
+            else:
+                logger.debug("Trafilatura extracted text too short, trying fallback")
     except Exception as e:
-        logger.warning(f"Trafilatura extraction failed for {url}: {e}")
+        logger.warning(f"Trafilatura extraction failed for {resolved_url}: {e}")
 
     # Fallback to BeautifulSoup
-    response = safe_get(url)
+    logger.info(f"Attempting BeautifulSoup extraction from: {resolved_url}")
+    response = safe_get(resolved_url)
     if not response:
         return None
 
-    # If still on news.google.com, skip (not a real article)
+    # Double-check we're not still on Google News
     if "news.google.com" in response.url:
-        logger.warning(f"Still on Google News stub, skipping: {url}")
+        logger.warning(f"Response URL still on Google News, skipping: {response.url}")
         return None
         
     try:
         soup = BeautifulSoup(response.text, "html.parser")
         
         # Remove unwanted elements
-        for tag in soup(["script", "style", "nav", "header", "footer", "aside"]):
+        for tag in soup(["script", "style", "nav", "header", "footer", "aside", "advertisement"]):
             tag.decompose()
         
-        # Find main content
-        main_content = soup.find('main') or soup.find('article') or soup.find('div', class_=re.compile(r'content|article|post'))
-        paragraphs = [p.get_text(strip=True) for p in (main_content.find_all("p") if main_content else soup.find_all("p")) if p.get_text(strip=True)]
-        text = "\n\n".join(paragraphs)
+        # Try multiple strategies to find main content
+        main_content = None
         
-        if len(text.split()) > 40:
-            logger.info(f"Extracted {len(text.split())} words from {url}")
-            return text
+        # Strategy 1: Look for common article containers
+        selectors = [
+            'article',
+            '[role="main"]',
+            'main',
+            '.article-content',
+            '.post-content',
+            '.entry-content',
+            '.content',
+            '.story-body',
+            '.article-body'
+        ]
+        
+        for selector in selectors:
+            main_content = soup.select_one(selector)
+            if main_content:
+                logger.debug(f"Found content using selector: {selector}")
+                break
+        
+        # Strategy 2: Find div with content-related class names
+        if not main_content:
+            main_content = soup.find('div', class_=re.compile(r'content|article|post|story|body', re.I))
+        
+        # Strategy 3: Fall back to all paragraphs
+        if main_content:
+            paragraphs = main_content.find_all("p")
+        else:
+            paragraphs = soup.find_all("p")
+        
+        # Extract text from paragraphs
+        text_parts = []
+        for p in paragraphs:
+            text = p.get_text(strip=True)
+            if text and len(text.split()) > 5:  # Skip very short paragraphs
+                text_parts.append(text)
+        
+        full_text = "\n\n".join(text_parts)
+        
+        if len(full_text.split()) > 40:
+            logger.info(f"✅ BeautifulSoup extracted {len(full_text.split())} words from {resolved_url}")
+            return full_text
+        else:
+            logger.warning(f"Extracted text too short ({len(full_text.split())} words) from {resolved_url}")
+            
     except Exception as e:
-        logger.warning(f"BeautifulSoup extraction failed for {url}: {e}")
-    
-    return None
-
-        
-    try:
-        soup = BeautifulSoup(response.text, "html.parser")
-        
-        # Remove unwanted elements
-        for tag in soup(["script", "style", "nav", "header", "footer", "aside"]):
-            tag.decompose()
-        
-        # Find main content
-        main_content = soup.find('main') or soup.find('article') or soup.find('div', class_=re.compile(r'content|article|post'))
-        paragraphs = [p.get_text(strip=True) for p in (main_content.find_all("p") if main_content else soup.find_all("p")) if p.get_text(strip=True)]
-        text = "\n\n".join(paragraphs)
-        
-        if len(text.split()) > 40:
-            logger.info(f"Extracted {len(text.split())} words from {url}")
-            return text
-    except Exception as e:
-        logger.warning(f"BeautifulSoup extraction failed for {url}: {e}")
+        logger.warning(f"BeautifulSoup extraction failed for {resolved_url}: {e}")
     
     return None
 
@@ -137,24 +234,21 @@ def fetch_rss(url):
     logger.info(f"Fetching RSS feed: {url}")
     try:
         feed = feedparser.parse(url, request_headers=HEADERS)
+        
+        if feed.bozo:
+            logger.warning(f"RSS feed has parsing errors: {feed.bozo_exception}")
+        
+        logger.info(f"Found {len(feed.entries)} entries in feed")
+        
         for entry in feed.entries:
             if hasattr(entry, 'link'):
-                # Fix for Google News: follow redirects to real publisher URL
-                link = entry.link
-                if "news.google.com" in link:
-                    response = safe_get(link)
-                    if response:
-                        link = response.url  # final destination after redirects
-                        logger.info(f"Resolved Google News link -> {link}")
-
                 yield {
                     "title": getattr(entry, "title", "(no title)"),
-                    "url": link,
+                    "url": entry.link,
                     "published": getattr(entry, "published", "")
                 }
     except Exception as e:
         logger.error(f"Error fetching RSS from {url}: {e}")
-
 
 def simple_summarize(text, max_sentences=3):
     """Create a simple summary by selecting the most important sentences."""
@@ -226,35 +320,44 @@ def run():
     # Fetch articles from all sources
     for source_url in CFG["sources"]:
         try:
+            logger.info(f"Processing RSS source: {source_url}")
+            entry_count = 0
+            
             for entry in fetch_rss(source_url):
+                entry_count += 1
                 url = entry["url"]
+                title = entry["title"]
+                
+                logger.info(f"Processing entry {entry_count}: {title}")
                 
                 # Skip if we've already processed this URL
                 url_hash = hashlib.sha256(url.encode()).hexdigest()
                 if url_hash in seen_articles:
+                    logger.info(f"Already processed this article, skipping")
                     continue
                 seen_articles.add(url_hash)
                 
                 # Extract article content
                 text = extract_main_text(url)
                 if not text:
-                    logger.info(f"No content extracted from {url}, skipping")
+                    logger.warning(f"❌ No content extracted from {url}, skipping")
                     continue
                 
                 # Create summary
                 summary = simple_summarize(text)
                 
                 articles.append({
-                    "title": entry["title"],
+                    "title": title,
                     "url": url,
                     "published": entry["published"],
                     "summary": summary
                 })
                 
-                logger.info(f"Added article: {entry['title']}")
+                logger.info(f"✅ Added article: {title}")
                 
                 # Stop when we have enough articles
                 if len(articles) >= max_articles:
+                    logger.info(f"Reached maximum articles ({max_articles})")
                     break
                     
         except Exception as e:
@@ -264,7 +367,7 @@ def run():
             break
     
     if not articles:
-        logger.info("No articles found")
+        logger.warning("❌ No articles found")
         return
     
     # Build email content
