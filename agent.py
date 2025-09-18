@@ -85,6 +85,32 @@ def extract_main_text(url):
     response = safe_get(url)
     if not response:
         return None
+
+    # If still on news.google.com, skip (not a real article)
+    if "news.google.com" in response.url:
+        logger.warning(f"Still on Google News stub, skipping: {url}")
+        return None
+        
+    try:
+        soup = BeautifulSoup(response.text, "html.parser")
+        
+        # Remove unwanted elements
+        for tag in soup(["script", "style", "nav", "header", "footer", "aside"]):
+            tag.decompose()
+        
+        # Find main content
+        main_content = soup.find('main') or soup.find('article') or soup.find('div', class_=re.compile(r'content|article|post'))
+        paragraphs = [p.get_text(strip=True) for p in (main_content.find_all("p") if main_content else soup.find_all("p")) if p.get_text(strip=True)]
+        text = "\n\n".join(paragraphs)
+        
+        if len(text.split()) > 40:
+            logger.info(f"Extracted {len(text.split())} words from {url}")
+            return text
+    except Exception as e:
+        logger.warning(f"BeautifulSoup extraction failed for {url}: {e}")
+    
+    return None
+
         
     try:
         soup = BeautifulSoup(response.text, "html.parser")
@@ -113,13 +139,22 @@ def fetch_rss(url):
         feed = feedparser.parse(url, request_headers=HEADERS)
         for entry in feed.entries:
             if hasattr(entry, 'link'):
+                # Fix for Google News: follow redirects to real publisher URL
+                link = entry.link
+                if "news.google.com" in link:
+                    response = safe_get(link)
+                    if response:
+                        link = response.url  # final destination after redirects
+                        logger.info(f"Resolved Google News link -> {link}")
+
                 yield {
                     "title": getattr(entry, "title", "(no title)"),
-                    "url": entry.link,
+                    "url": link,
                     "published": getattr(entry, "published", "")
                 }
     except Exception as e:
         logger.error(f"Error fetching RSS from {url}: {e}")
+
 
 def simple_summarize(text, max_sentences=3):
     """Create a simple summary by selecting the most important sentences."""
