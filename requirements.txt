@@ -1,4 +1,4 @@
-# Core
+# Core dependencies
 feedparser==6.0.11
 requests==2.32.3
 beautifulsoup4==4.12.3
@@ -7,7 +7,22 @@ PyYAML==6.0.2
 python-dateutil==2.9.0.post0
 rapidfuzz==3.9.6
 
-# Optional (only if you enable OpenAI summarization)
-openai>=1.40.0
+# Content extraction
+newspaper3k==0.2.8
 
-# Email
+# Email (built-in with Python 3.7+)
+# smtplib and email.message are part of Python standard library
+
+# Optional LLM integration
+openai>=1.40.0
+anthropic>=0.25.0
+
+# HTML parsing (already included with beautifulsoup4, but explicit for clarity)
+lxml>=4.9.0
+html5lib>=1.1
+
+# URL parsing and HTTP utilities (built-in with Python)
+# urllib is part of Python standard library
+
+# Logging and utilities (built-in with Python)
+# logging, json, hashlib, time, os, re are part of Python standard library
