@@ -2,7 +2,6 @@
 timezone: "Asia/Kolkata"
 
 topics:
-topics:
   - "IRDAI"
   - "SEBI"
   - "mutual fund distribution"
@@ -76,4 +75,3 @@ storage:
 ranking:
   # Simple keyword scoring. You can tune weights per topic if needed.
   min_score: 1
-python agent.py

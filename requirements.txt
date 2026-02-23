@@ -8,6 +8,6 @@ python-dateutil==2.9.0.post0
 rapidfuzz==3.9.6
 
 # Optional (only if you enable OpenAI summarization)
-openai>=1.40.0
+openai>=1.65.0
 
 # Email
