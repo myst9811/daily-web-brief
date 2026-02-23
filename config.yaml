@@ -52,8 +52,8 @@ limits:
 delivery:
   # Choose where to send the brief. Set enabled: true and configure credentials via env vars.
   email:
-    enabled: false
-    to: "you@example.com"
+    enabled: true
+    to: "saikia.anupam@gmail.com"
     subject_prefix: "[Daily Brief]"
     # SMTP credentials are expected from environment variables:
     # SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM
