@@ -75,3 +75,10 @@ storage:
 ranking:
   # Simple keyword scoring. You can tune weights per topic if needed.
   min_score: 1
+  # Optional: weights for hybrid scoring (semantic + keyword + recency)
+  # score_weights:
+  #   semantic: 0.4
+  #   keyword: 0.4
+  #   recency: 0.2
+  # embedding_model: "text-embedding-3-small"
+  # max_age_hours: 48
