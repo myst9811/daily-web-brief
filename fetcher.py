@@ -13,10 +13,40 @@ import feedparser
 import httpx
 import trafilatura
 from bs4 import BeautifulSoup
+from googlenewsdecoder import new_decoderv1
 
 import storage
 
 logger = logging.getLogger(__name__)
+
+
+BINARY_EXTENSIONS = {".pdf", ".xlsx", ".xls", ".docx", ".doc", ".pptx", ".ppt", ".zip", ".csv"}
+
+def is_fetchable_url(url: str) -> bool:
+    """Return False for URLs that point to binary/document files."""
+    from urllib.parse import urlparse
+    path = urlparse(url).path.lower()
+    return not any(path.endswith(ext) for ext in BINARY_EXTENSIONS)
+
+def is_clean_text(text: str, min_printable_ratio: float = 0.95) -> bool:
+    """Return False if more than 5% of characters are non-printable (binary garbage)."""
+    if not text:
+        return False
+    printable = sum(1 for c in text if c.isprintable() or c in "\n\t")
+    return (printable / len(text)) >= min_printable_ratio
+
+def resolve_article_url(url: str) -> str:
+    """Decode Google News redirect URLs to the real article URL."""
+    if "news.google.com" not in url:
+        return url
+    try:
+        decoded = new_decoderv1(url)
+        real = decoded.get("decoded_url")
+        if real:
+            return real
+    except Exception as exc:
+        logger.debug("Google News URL decode failed for %s: %s", url, exc)
+    return url
 
 HEADERS = {
     "User-Agent": "DailyBriefAgent/1.0 (+personal research; contact: you@example.com)"
@@ -145,7 +175,7 @@ async def extract_main_text_async(
                     downloaded, include_comments=False, include_tables=False
                 ),
             )
-            if text and len(text.split()) > 40:
+            if text and len(text.split()) > 40 and is_clean_text(text):
                 return text
     except Exception as exc:
         logger.debug("trafilatura failed for %s: %s", url, exc)
@@ -157,7 +187,9 @@ async def extract_main_text_async(
         for tag in soup(["script", "style", "noscript", "header", "footer", "aside", "nav"]):
             tag.extract()
         text = " ".join(soup.stripped_strings)
-        return text if len(text.split()) > 40 else None
+        if len(text.split()) > 40 and is_clean_text(text):
+            return text
+        return None
     except Exception as exc:
         logger.debug("BS4 fallback failed for %s: %s", url, exc)
         return None
@@ -170,7 +202,11 @@ async def fetch_full_content_batch(
 ) -> list[dict]:
     """Fetch full text for each candidate article. Drops failures."""
     async def _fetch_one(item: dict) -> Optional[dict]:
-        text = await extract_main_text_async(client, item["url"], semaphore)
+        resolved_url = resolve_article_url(item["url"])
+        if not is_fetchable_url(resolved_url):
+            logger.debug("Skipping non-HTML URL: %s", resolved_url)
+            return None
+        text = await extract_main_text_async(client, resolved_url, semaphore)
         if not text:
             logger.debug("No content extracted for %s", item["url"])
             return None

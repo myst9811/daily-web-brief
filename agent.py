@@ -8,6 +8,7 @@ import sqlite3
 import hashlib
 import feedparser
 import requests
+from googlenewsdecoder import new_decoderv1
 from urllib.parse import urlparse
 from datetime import datetime, timezone
 from dateutil import tz
@@ -24,6 +25,21 @@ def load_config():
 
 CFG = load_config()
 TZ = tz.gettz(CFG.get("timezone", "Asia/Kolkata"))
+
+# ---- URL / text guards ----
+BINARY_EXTENSIONS = {".pdf", ".xlsx", ".xls", ".docx", ".doc", ".pptx", ".ppt", ".zip", ".csv"}
+
+def is_fetchable_url(url: str) -> bool:
+    """Return False for URLs that point to binary/document files."""
+    path = urlparse(url).path.lower()
+    return not any(path.endswith(ext) for ext in BINARY_EXTENSIONS)
+
+def is_clean_text(text: str, min_printable_ratio: float = 0.95) -> bool:
+    """Return False if more than 5% of characters are non-printable (binary garbage)."""
+    if not text:
+        return False
+    printable = sum(1 for c in text if c.isprintable() or c in "\n\t")
+    return (printable / len(text)) >= min_printable_ratio
 
 # ---- Storage (SQLite) ----
 DB_PATH = os.path.join(HERE, CFG["storage"]["db_path"])
@@ -237,8 +253,17 @@ def run():
     for e in rss_candidates[:max_fetch]:
         url = e["url"]
         title = e["title"]
+        if "news.google.com" in url:
+            try:
+                decoded = new_decoderv1(url)
+                url = decoded.get("decoded_url") or url
+            except Exception:
+                pass
+        if not is_fetchable_url(url):
+            print(f"[skip] non-HTML URL: {url[:80]}")
+            continue
         text = extract_main_text(url)
-        if not text:
+        if not text or not is_clean_text(text):
             continue
         h = hashlib.sha256(text.encode("utf-8")).hexdigest()
         # Deduplicate by content hash

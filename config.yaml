@@ -25,24 +25,39 @@ topics:
   - "digital lending"
 
 sources:
-  # Prefer RSS first for reliability. Add/replace with your own feeds & sites.
-  - "https://news.google.com/rss/search?q=IRDAI+India"
-  - "https://news.google.com/rss/search?q=SEBI+regulations+India"
-  - "https://news.google.com/rss/search?q=mutual+fund+distribution+India"
-  - "https://news.google.com/rss/search?q=insurance+broking+India"
-  - "https://news.google.com/rss/search?q=digital+lending+India"
-  # IRDAI
-  - "https://news.google.com/rss/search?q=site:irdai.gov.in+IRDAI+circular"
+  # --- Regulatory (official feeds) ---
 
-  # SEBI circulars & advertising code
-  - "https://news.google.com/rss/search?q=site:sebi.gov.in+mutual+fund+advertisement"
-  - "https://news.google.com/rss/search?q=site:sebi.gov.in+B-30+incentives"
-  - "https://news.google.com/rss/search?q=site:sebi.gov.in+mutual+fund+commission"
+  # SEBI — official RSS (press releases, circulars, orders)
+  - "https://www.sebi.gov.in/sebirss.xml"
 
-  # AMFI distributor corner (commission/advisory guidelines)
-  - "https://news.google.com/rss/search?q=site:amfiindia.com+commission"
-  - "https://news.google.com/rss/search?q=site:amfiindia.com+advertisement+code"
-  - "https://news.google.com/rss/search?q=site:amfiindia.com+B-30"
+  # IRDAI — no official RSS; one targeted Google News feed as fallback
+  - "https://news.google.com/rss/search?q=IRDAI+circular+India"
+
+  # --- Reputable Indian financial publishers (direct RSS) ---
+
+  # Economic Times — top business stories
+  - "https://economictimes.indiatimes.com/rssfeedsdefault.cms"
+
+  # Mint — personal finance & money
+  - "https://www.livemint.com/rss/money"
+
+  # Mint — markets
+  - "https://www.livemint.com/rss/markets"
+
+  # Business Standard — top stories
+  - "https://www.business-standard.com/rss/home_page_top_stories.rss"
+
+  # Business Standard — markets
+  - "https://www.business-standard.com/rss/markets-106.rss"
+
+  # Financial Express — general feed
+  - "https://www.financialexpress.com/feed/"
+
+  # The Hindu BusinessLine
+  - "https://www.thehindubusinessline.com/feeder/default.rss"
+
+  # Moneycontrol — latest news
+  - "http://www.moneycontrol.com/rss/latestnews.xml"
 
 
 limits:
