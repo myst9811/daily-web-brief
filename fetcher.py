@@ -175,7 +175,7 @@ async def extract_main_text_async(
                     downloaded, include_comments=False, include_tables=False
                 ),
             )
-            if text and len(text.split()) > 40:
+            if text and len(text.split()) > 40 and is_clean_text(text):
                 return text
     except Exception as exc:
         logger.debug("trafilatura failed for %s: %s", url, exc)
@@ -187,7 +187,9 @@ async def extract_main_text_async(
         for tag in soup(["script", "style", "noscript", "header", "footer", "aside", "nav"]):
             tag.extract()
         text = " ".join(soup.stripped_strings)
-        return text if len(text.split()) > 40 else None
+        if len(text.split()) > 40 and is_clean_text(text):
+            return text
+        return None
     except Exception as exc:
         logger.debug("BS4 fallback failed for %s: %s", url, exc)
         return None
