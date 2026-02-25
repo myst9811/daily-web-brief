@@ -1,0 +1,6 @@
+.venv/
+state.sqlite3
+reports/
+__pycache__/
+*.pyc
+.env

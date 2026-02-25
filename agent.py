@@ -48,7 +48,7 @@ HEADERS = {
 }
 
 def polite_get(url, timeout=20):
-    time.sleep(0.8)  # be polite
+    time.sleep(0.3)  # be polite
     return requests.get(url, headers=HEADERS, timeout=timeout)
 
 def extract_main_text(url):
@@ -78,13 +78,14 @@ def fetch_rss(url):
     for e in d.entries:
         link = getattr(e, "link", None)
         title = getattr(e, "title", "(no title)")
+        description = getattr(e, "summary", "") or getattr(e, "description", "") or ""
         published = None
         for key in ("published_parsed", "updated_parsed"):
             if getattr(e, key, None):
                 ts = int(time.mktime(getattr(e, key)))
                 published = datetime.fromtimestamp(ts, tz=timezone.utc).astimezone(TZ)
                 break
-        yield {"title": title, "url": link, "published": published}
+        yield {"title": title, "url": link, "published": published, "description": description}
 
 # ---- Relevance scoring ----
 TOPICS = [t.lower() for t in CFG.get("topics", [])]
@@ -208,44 +209,55 @@ def run():
     cur = con.cursor()
     candidates = []
 
-    # 1) Collect
+    # 1) Collect RSS metadata and score without fetching full content
+    rss_candidates = []
     for src in CFG["sources"]:
         if "rss" in src or src.endswith(".xml") or src.startswith("http"):
             try:
                 for e in fetch_rss(src):
                     if not e["url"]:
                         continue
-                    title = e["title"]
-                    url = e["url"]
-                    # 2) Extract main content
-                    text = extract_main_text(url)
-                    if not text:
-                        continue
-                    h = hashlib.sha256(text.encode("utf-8")).hexdigest()
-
-                    # 3) Deduplicate using DB
-                    cur.execute("SELECT 1 FROM seen WHERE url = ? OR content_hash = ?", (url, h))
+                    # Skip already-seen URLs
+                    cur.execute("SELECT 1 FROM seen WHERE url = ?", (e["url"],))
                     if cur.fetchone():
                         continue
-
-                    # 4) Score relevance
-                    s = score(text, title)
+                    # Pre-score using title + RSS description (no HTTP fetch yet)
+                    s = score(e["description"], e["title"])
                     if s >= CFG["ranking"].get("min_score", 1):
-                        candidates.append({
-                            "title": title,
-                            "url": url,
-                            "published": e["published"],
-                            "text": text,
-                            "score": s,
-                            "hash": h
-                        })
+                        rss_candidates.append({**e, "score": s})
             except Exception as ex:
                 print(f"[warn] source failed: {src} -> {ex}")
 
-    # 5) Rank & limit
+    # 2) Rank by pre-score and limit before doing any full-content fetches
+    rss_candidates.sort(key=lambda x: (x["score"], x["published"] or datetime.min.replace(tzinfo=TZ)), reverse=True)
+    max_fetch = min(CFG["limits"]["per_run_max_articles"], len(rss_candidates))
+    print(f"[info] {len(rss_candidates)} RSS candidates, fetching content for top {max_fetch}")
+
+    # 3) Fetch full content only for top candidates
+    for e in rss_candidates[:max_fetch]:
+        url = e["url"]
+        title = e["title"]
+        text = extract_main_text(url)
+        if not text:
+            continue
+        h = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        # Deduplicate by content hash
+        cur.execute("SELECT 1 FROM seen WHERE content_hash = ?", (h,))
+        if cur.fetchone():
+            continue
+        candidates.append({
+            "title": title,
+            "url": url,
+            "published": e["published"],
+            "text": text,
+            "score": e["score"],
+            "hash": h
+        })
+        print(f"[fetch] ({len(candidates)}/{max_fetch}) {title[:60]}")
+
+    # 4) Final rank
     candidates.sort(key=lambda x: (x["score"], x["published"] or datetime.min.replace(tzinfo=TZ)), reverse=True)
-    max_keep = min(CFG["limits"]["per_run_max_articles"], len(candidates))
-    top = candidates[:max_keep]
+    top = candidates
 
     # 6) Summarize
     summarized = []

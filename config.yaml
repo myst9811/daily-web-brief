@@ -2,7 +2,6 @@
 timezone: "Asia/Kolkata"
 
 topics:
-topics:
   - "IRDAI"
   - "SEBI"
   - "mutual fund distribution"
@@ -53,8 +52,8 @@ limits:
 delivery:
   # Choose where to send the brief. Set enabled: true and configure credentials via env vars.
   email:
-    enabled: false
-    to: "you@example.com"
+    enabled: true
+    to: "saikia.anupam@gmail.com"
     subject_prefix: "[Daily Brief]"
     # SMTP credentials are expected from environment variables:
     # SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM
@@ -76,4 +75,10 @@ storage:
 ranking:
   # Simple keyword scoring. You can tune weights per topic if needed.
   min_score: 1
-python agent.py
+  # Optional: weights for hybrid scoring (semantic + keyword + recency)
+  # score_weights:
+  #   semantic: 0.4
+  #   keyword: 0.4
+  #   recency: 0.2
+  # embedding_model: "text-embedding-3-small"
+  # max_age_hours: 48
