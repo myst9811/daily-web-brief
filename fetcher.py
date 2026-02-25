@@ -20,6 +20,21 @@ import storage
 logger = logging.getLogger(__name__)
 
 
+BINARY_EXTENSIONS = {".pdf", ".xlsx", ".xls", ".docx", ".doc", ".pptx", ".ppt", ".zip", ".csv"}
+
+def is_fetchable_url(url: str) -> bool:
+    """Return False for URLs that point to binary/document files."""
+    from urllib.parse import urlparse
+    path = urlparse(url).path.lower()
+    return not any(path.endswith(ext) for ext in BINARY_EXTENSIONS)
+
+def is_clean_text(text: str, min_printable_ratio: float = 0.95) -> bool:
+    """Return False if more than 5% of characters are non-printable (binary garbage)."""
+    if not text:
+        return False
+    printable = sum(1 for c in text if c.isprintable() or c in "\n\t")
+    return (printable / len(text)) >= min_printable_ratio
+
 def resolve_article_url(url: str) -> str:
     """Decode Google News redirect URLs to the real article URL."""
     if "news.google.com" not in url:
