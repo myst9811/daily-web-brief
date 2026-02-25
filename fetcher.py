@@ -203,6 +203,9 @@ async def fetch_full_content_batch(
     """Fetch full text for each candidate article. Drops failures."""
     async def _fetch_one(item: dict) -> Optional[dict]:
         resolved_url = resolve_article_url(item["url"])
+        if not is_fetchable_url(resolved_url):
+            logger.debug("Skipping non-HTML URL: %s", resolved_url)
+            return None
         text = await extract_main_text_async(client, resolved_url, semaphore)
         if not text:
             logger.debug("No content extracted for %s", item["url"])
