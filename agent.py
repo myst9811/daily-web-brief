@@ -165,6 +165,7 @@ def send_email(subject, body_md):
         return False
     import smtplib
     from email.message import EmailMessage
+    import markdown
 
     host = os.environ.get("SMTP_HOST")
     port = int(os.environ.get("SMTP_PORT", "587"))
@@ -177,11 +178,32 @@ def send_email(subject, body_md):
         print("[email] Missing SMTP env vars.")
         return False
 
+    body_html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body {{ font-family: Georgia, serif; max-width: 700px; margin: 40px auto; color: #222; line-height: 1.6; }}
+  h1 {{ color: #1a1a2e; border-bottom: 2px solid #e63946; padding-bottom: 8px; }}
+  h2 {{ color: #1a1a2e; margin-top: 32px; }}
+  em {{ color: #555; font-size: 0.9em; }}
+  hr {{ border: none; border-top: 1px solid #ddd; margin: 24px 0; }}
+  ul {{ padding-left: 20px; }}
+  li {{ margin-bottom: 6px; }}
+  a {{ color: #e63946; }}
+</style>
+</head>
+<body>
+{markdown.markdown(body_md, extensions=["extra"])}
+</body>
+</html>"""
+
     msg = EmailMessage()
     msg["Subject"] = subject
     msg["From"] = from_addr
     msg["To"] = to_addr
     msg.set_content(body_md)
+    msg.add_alternative(body_html, subtype="html")
 
     with smtplib.SMTP(host, port) as s:
         s.starttls()
