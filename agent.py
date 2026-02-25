@@ -8,6 +8,7 @@ import sqlite3
 import hashlib
 import feedparser
 import requests
+from googlenewsdecoder import new_decoderv1
 from urllib.parse import urlparse
 from datetime import datetime, timezone
 from dateutil import tz
@@ -237,6 +238,12 @@ def run():
     for e in rss_candidates[:max_fetch]:
         url = e["url"]
         title = e["title"]
+        if "news.google.com" in url:
+            try:
+                decoded = new_decoderv1(url)
+                url = decoded.get("decoded_url") or url
+            except Exception:
+                pass
         text = extract_main_text(url)
         if not text:
             continue

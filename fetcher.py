@@ -13,10 +13,25 @@ import feedparser
 import httpx
 import trafilatura
 from bs4 import BeautifulSoup
+from googlenewsdecoder import new_decoderv1
 
 import storage
 
 logger = logging.getLogger(__name__)
+
+
+def resolve_article_url(url: str) -> str:
+    """Decode Google News redirect URLs to the real article URL."""
+    if "news.google.com" not in url:
+        return url
+    try:
+        decoded = new_decoderv1(url)
+        real = decoded.get("decoded_url")
+        if real:
+            return real
+    except Exception as exc:
+        logger.debug("Google News URL decode failed for %s: %s", url, exc)
+    return url
 
 HEADERS = {
     "User-Agent": "DailyBriefAgent/1.0 (+personal research; contact: you@example.com)"
@@ -170,7 +185,8 @@ async def fetch_full_content_batch(
 ) -> list[dict]:
     """Fetch full text for each candidate article. Drops failures."""
     async def _fetch_one(item: dict) -> Optional[dict]:
-        text = await extract_main_text_async(client, item["url"], semaphore)
+        resolved_url = resolve_article_url(item["url"])
+        text = await extract_main_text_async(client, resolved_url, semaphore)
         if not text:
             logger.debug("No content extracted for %s", item["url"])
             return None
