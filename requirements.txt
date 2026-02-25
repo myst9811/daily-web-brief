@@ -1,6 +1,6 @@
 # Core
 feedparser==6.0.11
-googlenewsdecoder>=1.0.0
+googlenewsdecoder>=0.1.7
 requests==2.32.3          # kept during agent.py transition; remove after agent.py is retired
 beautifulsoup4==4.12.3
 trafilatura==1.9.0
